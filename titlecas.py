@@ -58,15 +58,13 @@ def set_small_word_list(small=SMALL):
     SUBPHRASE = regex.compile(r'([:.;?!][ ])(%s)' % small)
 
 
-def titlecase(text, small_first_last=True, preserve_blank_lines=False, normalise_space_characters=False):
+def titlecase(text, small_first_last=True, normalise_space_characters=False):
     """
-    :param text: Titlecases input text
+    :param text: Titlecases input text (single line)
     :param small_first_last: Capitalize small words (e.g. 'A') at the beginning; disabled when recursing
-    :param preserve_blank_lines: Preserve blank lines in the output
     :param normalise_space_characters: Convert all original spaces to normal space characters
     :type text: str
     :type small_first_last: bool
-    :type preserve_blank_lines: bool
     :type normalise_space_characters: bool
 
     This filter changes all words to Title Caps, and attempts to be clever
@@ -76,106 +74,96 @@ def titlecase(text, small_first_last=True, preserve_blank_lines=False, normalise
     the New York Times Manual of Style, plus 'vs' and 'v'.
 
     """
-    if preserve_blank_lines:
-        lines = regex.split('[\r\n]', text)
-    else:
-        lines = regex.split('[\r\n]+', text)
-    processed = []
-    for line in lines:
-        all_caps = line.upper() == line
-        split_line = regex.split(r'(\s)', line)
-        words = split_line[::2]
-        spaces = split_line[1::2]
-        tc_line = []
-        for word in words:
-            if all_caps:
-                if UC_INITIALS.match(word):
-                    tc_line.append(word)
-                    continue
-
-            if APOS_SECOND.match(word):
-                if len(word[0]) == 1 and word[0] not in 'aeiouAEIOU':
-                    word = word[0].lower() + word[1] + word[2].upper() + word[3:]
-                else:
-                    word = word[0].upper() + word[1] + word[2].upper() + word[3:]
+    all_caps = text.upper() == text
+    split_line = regex.split(r'(\s)', text)
+    words = split_line[::2]
+    spaces = split_line[1::2]
+    tc_line = []
+    for word in words:
+        if all_caps:
+            if UC_INITIALS.match(word):
                 tc_line.append(word)
                 continue
 
-            match = MAC_MC.match(word)
-            if match:
-                tc_line.append("%s%s" % (match.group(1).capitalize(),
-                                         titlecase(match.group(2), True)))
-                continue
+        if APOS_SECOND.match(word):
+            if len(word[0]) == 1 and word[0] not in 'aeiouAEIOU':
+                word = word[0].lower() + word[1] + word[2].upper() + word[3:]
+            else:
+                word = word[0].upper() + word[1] + word[2].upper() + word[3:]
+            tc_line.append(word)
+            continue
 
-            match = MR_MRS_MS_DR.match(word)
-            if match:
-                word = word[0].upper() + word[1:]
-                tc_line.append(word)
-                continue
+        match = MAC_MC.match(word)
+        if match:
+            tc_line.append("%s%s" % (match.group(1).capitalize(),
+                                     titlecase(match.group(2), True)))
+            continue
 
-            if INLINE_PERIOD.search(word) or (not all_caps and UC_ELSEWHERE.match(word)):
-                tc_line.append(word)
-                continue
-            if SMALL_WORDS.match(word):
-                tc_line.append(word.lower())
-                continue
+        match = MR_MRS_MS_DR.match(word)
+        if match:
+            word = word[0].upper() + word[1:]
+            tc_line.append(word)
+            continue
 
-            if "/" in word and "//" not in word:
-                slashed = map(
-                    lambda t: titlecase(t, False),
-                    word.split('/')
-                )
-                tc_line.append("/".join(slashed))
-                continue
+        if INLINE_PERIOD.search(word) or (not all_caps and UC_ELSEWHERE.match(word)):
+            tc_line.append(word)
+            continue
+        if SMALL_WORDS.match(word):
+            tc_line.append(word.lower())
+            continue
 
-            if '-' in word:
-                hyphenated = map(
-                    lambda t: titlecase(t, False),
-                    word.split('-')
-                )
-                tc_line.append("-".join(hyphenated))
-                continue
-
-            if all_caps:
-                word = word.lower()
-
-
-            CONSONANTS = ''.join(set(string.ascii_lowercase)
-                                 - {'a', 'e', 'i', 'o', 'u', 'y'})
-            is_all_consonants = regex.search(r'\A[' + CONSONANTS + r']+\Z', word,
-                                             flags=regex.IGNORECASE)
-            if is_all_consonants and len(word) > 2:
-                tc_line.append(word.upper())
-                continue
-
-            tc_line.append(CAPFIRST.sub(lambda m: m.group(0).upper(), word))
-
-        if small_first_last and tc_line:
-            tc_line[0] = SMALL_FIRST.sub(lambda m: '%s%s' % (
-                m.group(1),
-                m.group(2).capitalize()
-            ), tc_line[0])
-
-            tc_line[-1] = SMALL_LAST.sub(
-                lambda m: m.group(0).capitalize(), tc_line[-1]
+        if "/" in word and "//" not in word:
+            slashed = map(
+                lambda t: titlecase(t, False),
+                word.split('/')
             )
+            tc_line.append("/".join(slashed))
+            continue
 
-        if normalise_space_characters:
-            result = " ".join(tc_line)
-        else:
-            line_to_be_joined = tc_line + spaces
-            line_to_be_joined[::2] = tc_line
-            line_to_be_joined[1::2] = spaces
-            result = "".join(line_to_be_joined)
+        if '-' in word:
+            hyphenated = map(
+                lambda t: titlecase(t, False),
+                word.split('-')
+            )
+            tc_line.append("-".join(hyphenated))
+            continue
 
-        result = SUBPHRASE.sub(lambda m: '%s%s' % (
+        if all_caps:
+            word = word.lower()
+
+        CONSONANTS = ''.join(set(string.ascii_lowercase)
+                             - {'a', 'e', 'i', 'o', 'u', 'y'})
+        is_all_consonants = regex.search(r'\A[' + CONSONANTS + r']+\Z', word,
+                                         flags=regex.IGNORECASE)
+        if is_all_consonants and len(word) > 2:
+            tc_line.append(word.upper())
+            continue
+
+        tc_line.append(CAPFIRST.sub(lambda m: m.group(0).upper(), word))
+
+    if small_first_last and tc_line:
+        tc_line[0] = SMALL_FIRST.sub(lambda m: '%s%s' % (
             m.group(1),
             m.group(2).capitalize()
-        ), result)
+        ), tc_line[0])
 
-        processed.append(result)
+        tc_line[-1] = SMALL_LAST.sub(
+            lambda m: m.group(0).capitalize(), tc_line[-1]
+        )
 
-    result = "\n".join(processed)
+    if normalise_space_characters:
+        result = " ".join(tc_line)
+    else:
+        line_to_be_joined = tc_line + spaces
+        line_to_be_joined[::2] = tc_line
+        line_to_be_joined[1::2] = spaces
+        result = "".join(line_to_be_joined)
+
+    result = SUBPHRASE.sub(lambda m: '%s%s' % (
+        m.group(1),
+        m.group(2).capitalize()
+    ), result)
+
     return result
 
 
