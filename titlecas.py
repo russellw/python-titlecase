@@ -8,7 +8,6 @@ Python version by Stuart Colville http://muffinresearch.co.uk
 License: http://www.opensource.org/licenses/mit-license.php
 """
 
-import os
 import string
 
 try:
@@ -46,20 +45,6 @@ else:
     UC_INITIALS = regex.compile(r"^(?:[A-Z]\.|[A-Z]\.[A-Z])+$")
 
 
-class Immutable(object):
-    pass
-
-class ImmutableString(str, Immutable):
-    pass
-
-class ImmutableBytes(bytes, Immutable):
-    pass
-
-
-def _mark_immutable(text):
-    if isinstance(text, bytes):
-        return ImmutableBytes(text)
-    return ImmutableString(text)
 
 
 def set_small_word_list(small=SMALL):
@@ -73,15 +58,13 @@ def set_small_word_list(small=SMALL):
     SUBPHRASE = regex.compile(r'([:.;?!][ ])(%s)' % small)
 
 
-def titlecase(text, callback=None, small_first_last=True, preserve_blank_lines=False, normalise_space_characters=False):
+def titlecase(text, small_first_last=True, preserve_blank_lines=False, normalise_space_characters=False):
     """
     :param text: Titlecases input text
-    :param callback: Callback function that returns the titlecase version of a specific word
     :param small_first_last: Capitalize small words (e.g. 'A') at the beginning; disabled when recursing
     :param preserve_blank_lines: Preserve blank lines in the output
     :param normalise_space_characters: Convert all original spaces to normal space characters
     :type text: str
-    :type callback: function
     :type small_first_last: bool
     :type preserve_blank_lines: bool
     :type normalise_space_characters: bool
@@ -105,12 +88,6 @@ def titlecase(text, callback=None, small_first_last=True, preserve_blank_lines=F
         spaces = split_line[1::2]
         tc_line = []
         for word in words:
-            if callback:
-                new_word = callback(word, all_caps=all_caps)
-                if new_word:
-                    tc_line.append(_mark_immutable(new_word))
-                    continue
-
             if all_caps:
                 if UC_INITIALS.match(word):
                     tc_line.append(word)
@@ -127,7 +104,7 @@ def titlecase(text, callback=None, small_first_last=True, preserve_blank_lines=F
             match = MAC_MC.match(word)
             if match:
                 tc_line.append("%s%s" % (match.group(1).capitalize(),
-                                         titlecase(match.group(2), callback, True)))
+                                         titlecase(match.group(2), True)))
                 continue
 
             match = MR_MRS_MS_DR.match(word)
@@ -145,7 +122,7 @@ def titlecase(text, callback=None, small_first_last=True, preserve_blank_lines=F
 
             if "/" in word and "//" not in word:
                 slashed = map(
-                    lambda t: titlecase(t,callback,False),
+                    lambda t: titlecase(t, False),
                     word.split('/')
                 )
                 tc_line.append("/".join(slashed))
@@ -153,7 +130,7 @@ def titlecase(text, callback=None, small_first_last=True, preserve_blank_lines=F
 
             if '-' in word:
                 hyphenated = map(
-                    lambda t: titlecase(t, callback, False),
+                    lambda t: titlecase(t, False),
                     word.split('-')
                 )
                 tc_line.append("-".join(hyphenated))
@@ -174,16 +151,14 @@ def titlecase(text, callback=None, small_first_last=True, preserve_blank_lines=F
             tc_line.append(CAPFIRST.sub(lambda m: m.group(0).upper(), word))
 
         if small_first_last and tc_line:
-            if not isinstance(tc_line[0], Immutable):
-                tc_line[0] = SMALL_FIRST.sub(lambda m: '%s%s' % (
-                    m.group(1),
-                    m.group(2).capitalize()
-                ), tc_line[0])
+            tc_line[0] = SMALL_FIRST.sub(lambda m: '%s%s' % (
+                m.group(1),
+                m.group(2).capitalize()
+            ), tc_line[0])
 
-            if not isinstance(tc_line[-1], Immutable):
-                tc_line[-1] = SMALL_LAST.sub(
-                    lambda m: m.group(0).capitalize(), tc_line[-1]
-                )
+            tc_line[-1] = SMALL_LAST.sub(
+                lambda m: m.group(0).capitalize(), tc_line[-1]
+            )
 
         if normalise_space_characters:
             result = " ".join(tc_line)
@@ -204,19 +179,3 @@ def titlecase(text, callback=None, small_first_last=True, preserve_blank_lines=F
     return result
 
 
-def create_wordlist_filter_from_file(file_path):
-    '''
-    Load a list of abbreviations from the file with the provided path,
-    reading one abbreviation from each line, and return a callback to
-    be passed to the `titlecase` function for preserving their given
-    canonical capitalization during title-casing.
-    '''
-    if file_path is None:
-        return lambda word, **kwargs: None
-    file_path_str = str(file_path)
-    if not os.path.isfile(file_path_str):
-        return lambda word, **kwargs: None
-    with open(file_path_str) as f:
-        abbrevs_gen = (line.strip() for line in f.read().splitlines() if line)
-        abbrevs = {abbr.upper(): abbr for abbr in abbrevs_gen}
-        return lambda word, **kwargs: abbrevs.get(word.upper())
